@@ -1,0 +1,567 @@
+bash
+
+cat > /mnt/user-data/outputs/biochemistry_quiz.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biochemistry Quiz — Vanvitelli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161921;
+    --surface2: #1e2330;
+    --border: #2a3040;
+    --accent: #4fffb0;
+    --accent2: #ff6b6b;
+    --accent3: #ffd166;
+    --text: #e8eaf2;
+    --text-muted: #7a8299;
+    --correct: #4fffb0;
+    --wrong: #ff6b6b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── HEADER ── */
+  header {
+    width: 100%;
+    padding: 28px 40px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,15,20,0.96);
+    backdrop-filter: blur(12px);
+  }
+  .logo { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: var(--accent); letter-spacing: .04em; }
+  .logo span { color: var(--text-muted); font-size: .85rem; font-family: 'IBM Plex Mono', monospace; display: block; margin-top: 2px; }
+  #score-display { font-family: 'IBM Plex Mono', monospace; font-size: .85rem; color: var(--text-muted); text-align: right; }
+  #score-display b { color: var(--accent); font-size: 1.1rem; }
+
+  /* ── MAIN ── */
+  main { width: 100%; max-width: 780px; padding: 40px 24px 80px; }
+
+  /* ── PROGRESS ── */
+  .progress-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-bottom: 36px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #00c9ff); border-radius: 2px; transition: width .5s ease; }
+
+  /* ── QUESTION CARD ── */
+  .q-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px 40px;
+    margin-bottom: 24px;
+    animation: fadeSlide .35s ease;
+  }
+  @keyframes fadeSlide { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  .q-meta { font-family: 'IBM Plex Mono', monospace; font-size: .72rem; color: var(--text-muted); margin-bottom: 16px; letter-spacing: .08em; text-transform: uppercase; }
+  .q-text { font-size: 1.08rem; font-weight: 500; line-height: 1.65; color: var(--text); margin-bottom: 28px; }
+
+  /* ── OPTIONS ── */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    text-align: left;
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: .95rem;
+    cursor: pointer;
+    transition: border-color .18s, background .18s, transform .12s;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .opt-btn:hover:not(:disabled) { border-color: var(--accent); background: rgba(79,255,176,.06); transform: translateX(3px); }
+  .opt-btn .opt-letter { font-family: 'IBM Plex Mono', monospace; font-size: .75rem; font-weight: 600; color: var(--text-muted); min-width: 20px; padding-top: 1px; }
+  .opt-btn.correct { border-color: var(--correct); background: rgba(79,255,176,.1); }
+  .opt-btn.wrong   { border-color: var(--wrong);   background: rgba(255,107,107,.1); }
+  .opt-btn.correct .opt-letter { color: var(--correct); }
+  .opt-btn.wrong   .opt-letter { color: var(--wrong); }
+  .opt-btn:disabled { cursor: default; transform: none; }
+
+  /* ── AI EXPLANATION ── */
+  .ai-box {
+    background: linear-gradient(135deg, rgba(79,255,176,.05), rgba(0,201,255,.05));
+    border: 1px solid rgba(79,255,176,.25);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-top: 20px;
+    animation: fadeSlide .4s ease;
+  }
+  .ai-box-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-family: 'IBM Plex Mono', monospace; font-size: .72rem; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+  .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.7)} }
+  .ai-text { font-size: .93rem; line-height: 1.72; color: var(--text); }
+  .ai-text.loading { color: var(--text-muted); font-style: italic; }
+
+  /* ── NEXT BTN ── */
+  .btn-next {
+    background: var(--accent);
+    color: #0d0f14;
+    border: none;
+    border-radius: 8px;
+    padding: 14px 32px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: .95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: opacity .2s, transform .15s;
+    display: none;
+  }
+  .btn-next:hover { opacity: .88; transform: translateY(-1px); }
+  .btn-next.visible { display: inline-flex; align-items: center; gap: 8px; }
+
+  /* ── API KEY SETUP ── */
+  #setup-screen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 70vh; text-align: center; padding: 40px 24px;
+  }
+  #setup-screen h1 { font-family: 'Playfair Display', serif; font-size: 2.2rem; margin-bottom: 12px; }
+  #setup-screen p { color: var(--text-muted); max-width: 460px; line-height: 1.65; margin-bottom: 32px; font-size: .95rem; }
+  .api-input-group { display: flex; gap: 10px; width: 100%; max-width: 480px; }
+  .api-input-group input {
+    flex: 1; background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 13px 16px; color: var(--text);
+    font-family: 'IBM Plex Mono', monospace; font-size: .85rem; outline: none;
+    transition: border-color .2s;
+  }
+  .api-input-group input:focus { border-color: var(--accent); }
+  .btn-start {
+    background: var(--accent); color: #0d0f14; border: none; border-radius: 8px;
+    padding: 13px 24px; font-weight: 600; cursor: pointer; font-size: .9rem;
+    font-family: 'IBM Plex Sans', sans-serif; white-space: nowrap;
+    transition: opacity .2s;
+  }
+  .btn-start:hover { opacity: .85; }
+  .note { font-size: .78rem; color: var(--text-muted); margin-top: 14px; max-width: 480px; }
+  .note a { color: var(--accent); }
+
+  /* ── RESULTS ── */
+  #results-screen { display: none; text-align: center; padding: 60px 24px; }
+  #results-screen h2 { font-family: 'Playfair Display', serif; font-size: 2.4rem; margin-bottom: 8px; }
+  .result-score { font-size: 4rem; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: var(--accent); margin: 24px 0; }
+  .result-sub { color: var(--text-muted); margin-bottom: 36px; }
+  .btn-restart { background: var(--surface2); border: 1.5px solid var(--accent); color: var(--accent); border-radius: 8px; padding: 14px 32px; font-size: .95rem; font-weight: 600; cursor: pointer; font-family: 'IBM Plex Sans', sans-serif; transition: background .2s; }
+  .btn-restart:hover { background: rgba(79,255,176,.1); }
+
+  /* ── QUIZ SCREEN ── */
+  #quiz-screen { display: none; width: 100%; }
+
+  @media(max-width: 600px) {
+    .q-card { padding: 24px 20px; }
+    header { padding: 18px 20px; }
+    .api-input-group { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    Biochemistry Quiz
+    <span>Univ. Campania — L. Vanvitelli</span>
+  </div>
+  <div id="score-display" style="display:none">
+    Score <b id="score-num">0</b> / <span id="score-total">0</span>
+  </div>
+</header>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen">
+  <h1>Ready to study?</h1>
+  <p>Enter your Anthropic API key to enable AI explanations after each answer. The key stays in your browser only.</p>
+  <div class="api-input-group">
+    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+    <button class="btn-start" onclick="startQuiz()">Start Quiz →</button>
+  </div>
+  <p class="note">No key? <a href="#" onclick="startQuizNoKey()">Continue without AI explanations</a> — you'll still get the correct answer highlighted.<br><br>Get a free key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></p>
+</div>
+
+<!-- QUIZ SCREEN -->
+<main id="quiz-screen">
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+  <div id="q-container"></div>
+</main>
+
+<!-- RESULTS SCREEN -->
+<div id="results-screen">
+  <h2>Quiz Complete! 🎉</h2>
+  <div class="result-score" id="final-score"></div>
+  <p class="result-sub" id="final-sub"></p>
+  <button class="btn-restart" onclick="restartQuiz()">↺ Shuffle & Restart</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// QUESTION BANK — extracted from PDF past_questions.pdf
+// Format: { q: "question text", opts: ["A. ...", "B. ...", ...], answer: 0 (index) }
+// ═══════════════════════════════════════════════════════════════
+const ALL_QUESTIONS = [
+  // ─── SET 1 (pages 1-5) ─────────────────────────────────────
+  { q: "Which combination is correct?", opts: ["A. Histidine – Histamine", "B. Tryptophan – Serotonin", "C. Tyrosine – Adrenaline", "D. All of the previous"], answer: 3 },
+  { q: "Sulfur amino acids:", opts: ["A. Serine-Threonine-Cysteine", "B. Serine-Threonine-Tyrosine", "C. Cysteine-Methionine-Homocysteine", "D. Cysteine-Methionine-Glutathione"], answer: 2 },
+  { q: "A secondary protein structure (alpha helix):", opts: ["A. Is stabilized by hydrogen bonds between side chains of two adjacent residues", "B. Is stabilized by a peptide bond involving two consecutive residues", "C. Is stabilized by hydrogen bonds between spatially adjacent peptide units", "D. Is an important feature of secretory proteins", "E. Consists of a right-handed helix with 3.6 residues per pitch"], answer: 2 },
+  { q: "Indicate the right sequence for catecholamine biosynthesis:", opts: ["A. Phe→Tyr→Dopamine→L-DOPA→Epinephrine→Norepinephrine", "B. Phe→Tyr→L-DOPA→Dopamine→Epinephrine→Norepinephrine", "C. Phe→Tyr→L-DOPA→Dopamine→Norepinephrine→Epinephrine", "D. Tyr→Phe→L-DOPA→Dopamine→Norepinephrine→Epinephrine", "E. Phe→Tyr→L-DOPA→Norepinephrine→Dopamine→Epinephrine"], answer: 2 },
+  { q: "Melatonin:", opts: ["A. A skin pigment made by melanocytes", "B. A product of tryptophan metabolism", "C. A toxic food contaminant causing renal failure", "D. A hormone produced by the hypothalamus"], answer: 1 },
+  { q: "Pick up the right answer:", opts: ["A. Histamine is the product of tyrosine decarboxylation", "B. L-glycine is used for protein biosynthesis while its stereoisomer is not", "C. Glucose cannot be synthesized from glycerol in the liver", "D. Phenylketonuria is due to tyrosine hydroxylase deficiency"], answer: 1 },
+  { q: "Which statement is incorrect on enzyme action?", opts: ["A. It occurs through the formation of a transition state", "B. Enzymes are all stereospecific", "C. Not all enzymes are kinetically regulated in vivo", "D. Some isoenzymes have broader substrate specificity"], answer: 2 },
+  { q: "Which one of the following isoenzyme groups does NOT make sense?", opts: ["A. LD1-LD4", "B. CK MB-MM", "C. Alkaline phosphatase Bone/Liver", "D. Amylase (pancreas/salivary)", "E. None of the above — all make sense"], answer: 4 },
+  { q: "Which statement is incorrect about enzyme kinetics?", opts: ["A. Km corresponds to the [S] when V₀ = Vmax/2", "B. Competitive inhibitors irreversibly modify the apparent Km", "C. Irreversible inhibitors generally abolish enzyme stereospecificity", "D. Organophosphoric inhibitors form a covalent enzyme derivative", "E. Some enzyme isoforms are less sensitive to reversible inhibitors"], answer: 1 },
+  { q: "Which definition about hemoglobin is correct?", opts: ["A. Hb is transported by erythrocytes and binds 1/2 O₂ per molecule", "B. Hb is carried by erythrocytes and binds 1 oxygen molecule per subunit", "C. Platelets and RBC cooperate in O₂ transport", "D. CO₂ is produced by glycolysis and almost completely transported by Hb", "E. None of the previous"], answer: 1 },
+  { q: "Which of the following foods is rich in starch?", opts: ["A. Ham", "B. Veal", "C. Potatoes", "D. Brown sugar", "E. None"], answer: 2 },
+  { q: "Bilirubin is:", opts: ["A. A byproduct of globin catabolism", "B. A pigment derived from heme", "C. An amino acid secreted within bile", "D. A glycuronyl derivative of a protein modified by the liver", "E. An Hb ligand which reduces its affinity for oxygen"], answer: 1 },
+  { q: "Methionine (the compound shown) is:", opts: ["A. A fatty acid", "B. A peptide", "C. A carbohydrate", "D. A nucleotide", "E. None of the previous (it is an amino acid)"], answer: 4 },
+  { q: "NADH is:", opts: ["A. A nucleobase", "B. A reduced dinucleotide", "C. A thymidilate derivative", "D. A coenzyme of pentose monophosphate pathway", "E. A heme catabolic product"], answer: 1 },
+  { q: "Best definition of 'Enzyme':", opts: ["A. A biological catalyst of protein nature", "B. Conjugated proteins with catalytic function", "C. Simple proteins with biocatalytic function", "D. Macromolecular catalysts", "E. Aspecific or specific protein catalysts"], answer: 0 },
+  { q: "Best definition of vitamins:", opts: ["A. Essential, hydro or liposoluble micronutrients", "B. Low calorie dietary components", "C. Ascorbic acid or cholesterol derivatives", "D. Protein derivatives supplied by diet or produced by intestinal flora", "E. Nicotinic acid derivatives supplied in low amounts with daily diet"], answer: 0 },
+  { q: "The Michaelis-Menten (Km) constant:", opts: ["A. Defines enzyme saturation limit", "B. Represents the Vmax value at ½ [S]", "C. Has the dimension of [S] when V₀ approximates Vmax", "D. Is independent from V₀ and [S] when V₀=Vmax", "E. None of the previous"], answer: 4 },
+  { q: "The following structure (cis-unsaturated fatty acid) is:", opts: ["A. A modified amino acid", "B. A PUFA", "C. A cis-unsaturated fatty acid", "D. A trans-unsaturated fatty acid", "E. Retinoic acid"], answer: 2 },
+  { q: "The following small protein (with NH₃ terminus and COOH terminus, disulfide bridges) is:", opts: ["A. Hb beta chain", "B. Proinsulin", "C. Hb alpha chain", "D. Glycogen", "E. Starch"], answer: 1 },
+  { q: "The following compound (dipeptide structure H₃N-CH-CO-NH-CH-COO) is:", opts: ["A. A tripeptide", "B. A disaccharide", "C. An oligonucleotide", "D. An amino acid", "E. None of the previous (it is a dipeptide)"], answer: 4 },
+  { q: "Which of the following is an 'isoenzyme' couple?", opts: ["A. Glucokinase and exokinase", "B. HbF and HbA", "C. Collagen and elastin", "D. LDH and CPK", "E. All the previous"], answer: 0 },
+  { q: "Which one of the following is rich in cholesterol?", opts: ["A. Spinach", "B. Mozzarella", "C. Legumes", "D. 80% dark chocolate", "E. Tofu"], answer: 1 },
+  { q: "Cholesterol is carried in circulation by:", opts: ["A. LDL", "B. IgG", "C. Hb", "D. Collagen", "E. Bilirubin"], answer: 0 },
+  { q: "Urea is:", opts: ["A. The end product of transaminase metabolism", "B. The end product of protein nitrogen catabolism", "C. Glycolysis end product", "D. The product of pyruvate oxidative decarboxylation in mitochondria"], answer: 1 },
+  { q: "Rickets is a:", opts: ["A. Disease caused by Vit D deficiency in adults", "B. Disease caused by Vit E deficiency", "C. Disease caused by Vit A deficiency", "D. Disease caused by Vit D deficiency in children", "E. Combined deficiency of vitamins E and D"], answer: 3 },
+  { q: "Vit. K is involved in the biosynthesis of:", opts: ["A. Factor II, VII, IX, X", "B. Protein C", "C. Protein S", "D. Osteocalcin", "E. All the previous"], answer: 4 },
+  { q: "1,25-dihydroxycholecalciferol is the active derivative of which vitamin?", opts: ["A. Retinoic acid (Vitamin A)", "B. Tocopherol (Vitamin E)", "C. Niacin (Vitamin PP)", "D. Ascorbate (Vitamin C)", "E. None of the previous (it derives from Vitamin D)"], answer: 4 },
+  { q: "For production of 1,25-dihydroxycholecalciferol, which statement is true?", opts: ["A. Both the liver and the kidney are absolutely required", "B. The skin is able to carry out the biosynthesis if sunlight is enough", "C. It has to be taken from diet", "D. It has to be supplied with diet except in chronic renal failure patients", "E. None of the previous"], answer: 0 },
+  { q: "Which of the following is NOT a Hb ligand?", opts: ["A. O₂", "B. CO₂", "C. CO", "D. 1,3-DPG", "E. All are Hb ligands"], answer: 3 },
+  { q: "Which of the following proteins is the most abundant in our body?", opts: ["A. Insulin", "B. Serum albumin", "C. Myosin light chain kinase", "D. Collagen", "E. Haemoglobin"], answer: 3 },
+
+  // ─── SET 2 (October 2017 exam) ──────────────────────────────
+  { q: "What of the following statements about Km is correct?", opts: ["A. It is equal to the Vmax/2", "B. It depends on the incubation time of the reaction", "C. It depends on the enzyme concentration", "D. Its value is doubled by a non-competitive inhibitor", "E. None of the previous is correct"], answer: 0 },
+  { q: "What statement on prostaglandins is correct?", opts: ["A. Local acting hormones synthesized by COX", "B. Local acting hormones synthesized by LOX", "C. Letter indicates type and number of double bonds", "D. Basically represented by fatty acids derived from linolenic acid", "E. Acting through tyrosine kinase membrane-associated receptors"], answer: 0 },
+  { q: "What of the following statements on sphingomyelin is correct?", opts: ["A. They have unknown function", "B. Are represented by a ceramide linked to an ethanolamine", "C. Are involved in the regulation of electric potential of hepatocyte cell membrane", "D. Are made of a ceramide linked to a phosphocholine", "E. Make up the sheath of skeletal muscles"], answer: 3 },
+  { q: "In which way is CO₂ mainly carried in the blood?", opts: ["A. Dissolved in plasma", "B. Bound to heme groups of Hb", "C. Through carbonic anhydrase (as bicarbonates in plasma)", "D. Bound to free N-amino groups of Hb chains", "E. All of the previous"], answer: 2 },
+  { q: "What is a limiting reaction of a relevant metabolic pathway?", opts: ["A. An enzyme with limited concentration", "B. The enzyme that with its velocity determines the formation speed of the final product", "C. The enzyme that with its velocity determines the formation speed of the main metabolic intermediate", "D. The last enzyme of a metabolic pathway", "E. None of the previous"], answer: 2 },
+  { q: "In the phosphorylation reactions the following amino acids are involved:", opts: ["A. Serine, threonine and phenylalanine", "B. Serine, threonine and alanine", "C. Serine and threonine", "D. Serine, threonine and tyrosine", "E. Proline, lysine and glutamate"], answer: 3 },
+  { q: "What of the following statements on the anomeric effect of the C atom in carbohydrates is WRONG?", opts: ["A. It is responsible for alpha or beta configuration of the asymmetric C in cyclic structure", "B. It is responsible of the 'puckering' effect of carbohydrates that determines the nucleic acid structure", "C. The beta configuration is thermodynamically favoured", "D. It determines the enzymatic resistance of cellulose", "E. Depends on axial (alpha) or equatorial (beta) configuration"], answer: 1 },
+  { q: "What sentence about iron in the heme is WRONG?", opts: ["A. Iron is reduced (Fe++) and has six bonds available", "B. Iron is at the centre of the molecule interacting with the four pyrrolic rings", "C. Iron interacts with proximal histidine F8", "D. Iron interacts with distal histidine E7", "E. Iron is displaced at a distance of 0.4 Å from the plane of Heme"], answer: 3 },
+  { q: "Which one is the right answer about enzyme classes?", opts: ["A. Transferase catalyzes the C-C and C-S bond cleavage", "B. Oxidoreductase catalyzes the bond cleavage through addition of water", "C. Lyase catalyzes the geometrical or optical isomers racemization", "D. Ligase catalyzes C, N or P groups transfer", "E. None of the above"], answer: 4 },
+  { q: "During phenylketonuria, which of the following enzyme is defective?", opts: ["A. Tyrosine kinase", "B. Lysil hydroxylase", "C. Prolyl hydroxylase", "D. Phenylalanine hydroxylase", "E. Lactate dehydrogenase"], answer: 3 },
+  { q: "What statement about cholesterol is correct?", opts: ["A. It is prevalently assumed with the diet", "B. It is adsorbed in the bowel through the formation of HDL", "C. It is delivered in the blood in form of micelles", "D. Cholecalciferol derives from cholesterol", "E. Ergocalciferol derives from cholesterol"], answer: 0 },
+  { q: "Which of the following amino acids is NOT used for protein synthesis?", opts: ["A. Citrulline", "B. Glutamate", "C. Aspartate", "D. Arginine", "E. Methionine"], answer: 0 },
+  { q: "Protein kinase A (PKA):", opts: ["A. Phosphorylates glucose", "B. Is activated through a deamination", "C. Is a monomer containing a site for cAMP and another for ATP binding", "D. All of these are true", "E. None of the above"], answer: 4 },
+  { q: "Which vitamin can transfer methyl and formyl groups?", opts: ["A. Thiamine (B1)", "B. Ascorbic acid (C)", "C. Folic acid (tetrahydrofolate)", "D. CoA (B5)", "E. Riboflavin (B2)"], answer: 2 },
+  { q: "Which of the following is involved in carboxylation reactions?", opts: ["A. NAD+", "B. Pyridoxal-phosphate", "C. Biotin", "D. GDP", "E. Lipoic acid"], answer: 2 },
+  { q: "Choose the right answer; the aminotransferases:", opts: ["A. Usually need glutamine as an amine donor", "B. Catalyze reactions which lead to amino acids biosynthesis", "C. Need ATP", "D. Need pyridoxal phosphate as a coenzyme", "E. Are not able to catalyze transamination reactions of essential amino acids"], answer: 3 },
+  { q: "Choose the right sentence about proteoglycans and glycoproteins:", opts: ["A. Glycoproteins contain uranic acid and proteoglycans more than 20 carbohydrate residues", "B. Proteoglycans contain a long unbranched chain of repeated carbohydrate dimers; glycoproteins can contain N-linked carbohydrate 4 antennary structures", "C. Proteoglycans contain 10-20% wt. of carbohydrates and glycoproteins 5%", "D. Proteoglycans contain branched and glycoproteins unbranched carbohydrate chains", "E. Proteoglycans contain a long chain of repeated carbohydrate dimers and glycoprotein always contain N-linked carbohydrate 4 antennary structures"], answer: 1 },
+  { q: "What of the following sentences about sugars is correct?", opts: ["A. Complex sugars and carbohydrates induce a minor prolonged elevation of insulin in the blood", "B. Complex sugars and carbohydrates induce a higher elevation of insulin in the blood", "C. Complex sugars and carbohydrates induce a higher elevation of cortisol in the blood", "D. Complex sugars and carbohydrates induce a higher elevation of glucagon in the blood"], answer: 0 },
+  { q: "Choose the right statement about the conversion of pyruvate into lactate:", opts: ["A. It's a redox and reversible reaction", "B. It's a redox and irreversible reaction", "C. It occurs in the presence of oxygen", "D. It needs biotin", "E. It is catalyzed by pyruvate dehydrogenase"], answer: 0 },
+  { q: "Which one among the following statements best describes glucagon?", opts: ["A. It regulates glycogen metabolism", "B. It mainly works on skeletal muscle", "C. It mainly works on liver and brain", "D. Its concentration in blood increases after a carbohydrate-rich meal", "E. It causes the same effects of insulin"], answer: 0 },
+  { q: "Which statement about glycogen metabolism is WRONG?", opts: ["A. An increase in the concentration of chlorine ions stimulates glycogenolysis", "B. Glucagon stimulates degradation of liver glycogen", "C. Insulin stimulates accumulation of muscle glycogen", "D. An increasing concentration of glucose in blood stimulates glycogen synthesis", "E. Catabolic hormones stimulate glycogen degradation"], answer: 3 },
+  { q: "Which ones among the following sentences are correct?", opts: ["A. Glycogen and starch contain alpha 1,4-O glycosidic bindings and cellulose beta 1,4", "B. Glycogen and starch contain alpha 1,4-N glycosidic bindings and cellulose beta 1,4", "C. Glycogen and starch contain beta 1,4-N glycosidic bindings and cellulose alpha 1,4", "D. Glycogen and starch contain beta 1,4-O glycosidic bindings and cellulose alpha 1,4", "E. None of the above is correct"], answer: 0 },
+  { q: "Which of the following structures are present in the cytoplasmic collagen molecule?", opts: ["A. Beta sheets parallel", "B. NH2 and COOH terminus globular regions", "C. U-turn", "D. Collagen and alpha helix", "E. Beta sheets antiparallel"], answer: 1 },
+  { q: "Wernicke syndrome is due to deficit of:", opts: ["A. Vitamin B1 (Thiamine)", "B. Vitamin B2", "C. Vitamin B3", "D. Vitamin PP", "E. Vitamin B12"], answer: 0 },
+  { q: "Pick up the right answer about alpha keratin:", opts: ["A. Is a globular protein", "B. Is formed by three polypeptide chains", "C. Its structure is not stabilized by disulfide bridges between two Cys residues", "D. Is formed by four right-handed helices in a supercoiled coil", "E. Is formed by amino acids that favour alpha-helix formation (Phe, Ile, Val, Met, Ala)"], answer: 4 },
+  { q: "Which one among the following forms of tetrahydrofolate occurs in the biosynthesis of methionine from homocysteine?", opts: ["A. N5,N10-methylenetetrahydrofolate", "B. N5-methyltetrahydrofolate", "C. N5,N10-methenyltetrahydrofolate", "D. N10-formyltetrahydrofolate", "E. N5-formiminotetrahydrofolate"], answer: 1 },
+  { q: "An allosteric protein:", opts: ["A. May be formed by one or more subunits", "B. Is only regulated by binding of an activator to a binding site", "C. Has two or more different binding sites that functionally interact with each other", "D. Is always regulated by negative cooperativity mechanisms", "E. Its function is always and only regulated by its binding site for a specific ligand"], answer: 2 },
+  { q: "All the following statements about acetyl-CoA carboxylase are true EXCEPT:", opts: ["A. It has two enzymatic activities", "B. It needs biotin", "C. It does not bind covalently biotin", "D. The biotin valerate side chain is bound to the enzyme lysine amino group", "E. It needs a trans-carboxylase activity to react"], answer: 2 },
+  { q: "What of the following statements on celiac disease is WRONG?", opts: ["A. Gliadin is found in barley", "B. Legumes are without gluten", "C. Celiac disease is associated to DQ4/DQ8 haplotype", "D. Triticum Aestivus contains more gluten than Triticum Monococcus", "E. Celiac disease is a frequent disease"], answer: 2 },
+  { q: "What of the following statements on haemoglobin is WRONG?", opts: ["A. Iron-O₂ interacts with proximal histidine F8 and distal His E7 reducing the affinity of heme to CO", "B. The previous interaction reduces the affinity of heme for CO from 250,000 times to 21", "C. Methaemoglobin reductase is essential to prevent the binding of Hb to H₂O", "D. One 2,3DPG moiety binds to two beta globins per Hb molecule", "E. Low pH, high CO₂ and low O₂ reduce the affinity of Hb to O₂"], answer: 2 },
+
+  // ─── SET 3 (June 2019 exam) ─────────────────────────────────
+  { q: "The quaternary structure of a protein can confer to the protein the following property/ies:", opts: ["A. Regulatory function", "B. Allosteric function", "C. Rate Limiting Activity", "D. A and B", "E. B and C"], answer: 3 },
+  { q: "Vit K is involved in the post-translational modification of:", opts: ["A. Lysine", "B. Methionine", "C. Glutamate (γ-Glutamate Carboxylation → Gla)", "D. Tyrosine", "E. Serine"], answer: 2 },
+  { q: "Which of the following may be considered as a marker of a vitamin B6 deficiency?", opts: ["A. AST/ALT>2", "B. Methyl malonic acid increase", "C. Both the previous", "D. Porphyrin biosynthesis decrease", "E. A and D"], answer: 4 },
+  { q: "Indicate the wrong statement about glucokinase and hexokinase:", opts: ["A. Glucokinase has a higher Km for glucose and does not undergo product inhibition", "B. Hexokinase (isoenzyme I) is a ubiquitously present housekeeping isoenzyme", "C. Glucose-6-P is the substrate of glycogen synthase", "D. Hexokinase I, II, and III are strongly inhibited by their products", "E. Glucokinase catalyzes the same reaction, but with higher Km for glucose compared to hexokinase"], answer: 2 },
+  { q: "The conversion of lactate in pyruvate:", opts: ["A. Is catalyzed by pyruvate dehydrogenase", "B. Needs biotin", "C. Occurs in the presence of oxygen", "D. Is a redox reaction", "E. Is an irreversible redox reaction"], answer: 3 },
+  { q: "Indicate the intermediate(s) of the pentose phosphate pathway:", opts: ["A. Fructose-2,6-bisphosphate", "B. 6-phosphogluconolactone", "C. UDP-Glucose", "D. Lactic acid", "E. None of the above"], answer: 1 },
+  { q: "NADPH biosynthesis can be due to:", opts: ["A. A combined action of transaldolase and transketolase", "B. Shuttle systems action", "C. The electron transport chain action", "D. Malic enzyme activity", "E. Lactate dehydrogenase action"], answer: 3 },
+  { q: "Which among the following coenzymes is part of alpha-ketoglutarate dehydrogenase complex?", opts: ["A. Biotin and FAD", "B. Carnitine and Pyridoxal phosphate", "C. Pyridoxal phosphate and NAD+", "D. Lipoic acid and NAD+", "E. GDP and NAD+"], answer: 3 },
+  { q: "Hormones that work through the activation of phospholipase C use three second messengers, that are:", opts: ["A. cAMP, Ca++ and Diacylglycerol", "B. cAMP, Ca++ and Inositol 1,4,5-triphosphate", "C. cAMP, Diacylglycerol and Inositol 1,4,5-triphosphate", "D. Ca++, Diacylglycerol and Inositol 1,4,5-triphosphate", "E. Ca++, Ceramide and Inositol 1,4,5 triphosphate"], answer: 3 },
+  { q: "The glycolysis reactions that USE ATP are those catalyzed by:", opts: ["A. Pyruvate kinase and phosphofructokinase", "B. Pyruvate kinase and phosphoglycerate kinase", "C. Hexokinase and phosphofructoisomerase", "D. Aldolase and phosphofructokinase", "E. Hexokinase and phosphofructokinase-1"], answer: 4 },
+
+  // ─── SET 4 (August 2022 exam) ────────────────────────────────
+  { q: "Which of the following may be considered a marker of a vitamin B6 deficiency?", opts: ["A. AST/ALT>2", "B. Methyl malonic acid increase", "C. Both the previous", "D. Porphyrin biosynthesis decrease", "E. A and D"], answer: 4 },
+  { q: "Indicate the wrong statement about glucokinase/hexokinase:", opts: ["A. Glucokinase has a higher Km for glucose and does not undergo product inhibition", "B. Hexokinase (isoenzyme I) is a ubiquitously present housekeeping enzyme", "C. Glucose-6-phosphate is the substrate of glycogen synthase", "D. Hexokinase I-II-III are strongly inhibited by their products", "E. Glucokinase catalyzes the same reaction but with higher Km for glucose compared to hexokinase"], answer: 2 },
+  { q: "Indicate the intermediate of the pentose phosphate pathway:", opts: ["A. Fructose 2,6 bisphosphate", "B. 6-phosphogluconolactone", "C. UDP-glucose", "D. Lactic acid", "E. None of the above"], answer: 1 },
+  { q: "Which of the following molecules may be formed after the degradation of HAEM in Biliverdin catalyzed by Haem Oxygenase?", opts: ["A. H₂CO₃, NADP+", "B. H₂CO, NAD+, Fe++", "C. CO, NAD+, Fe+++", "D. CO, NADP+", "E. None of the above: Fe++, CO, NADP+"], answer: 4 },
+  { q: "Which one among the following vitamins is involved in the transfer of carbon dioxide?", opts: ["A. Thiamine (B1)", "B. Ascorbic acid", "C. Folic acid", "D. Biotin", "E. Riboflavin"], answer: 3 },
+  { q: "Which of the following compounds do both nitrogen atoms of urea derive from?", opts: ["A. Carbamylphosphate and glutamine", "B. Ammonia and aspartate", "C. Ornithine and aspartate", "D. Ornithine and glutamate", "E. Ornithine and carbamylphosphate"], answer: 1 },
+  { q: "Which one among the following forms of tetrahydrofolate occurs in the biosynthesis of methionine from homocysteine?", opts: ["A. N5,N10-methylenetetrahydrofolate", "B. N5-methyltetrahydrofolate", "C. N5,N10-methenyltetrahydrofolate", "D. N10-formyltetrahydrofolate", "E. N5-formiminotetrahydrofolate"], answer: 1 },
+  { q: "Histamine (the compound shown with imidazole ring and aminoethyl group) is:", opts: ["A. Histamine", "B. L-DOPA", "C. Ubiquinone", "D. Epinephrine", "E. Histidine"], answer: 0 },
+  { q: "Which one is a non-reducing disaccharide?", opts: ["A. Maltose", "B. Lactose", "C. Sucrose", "D. Isomaltose", "E. Cellobiose"], answer: 2 },
+  { q: "Which one among the following enzymes is needed for fatty acid biosynthesis?", opts: ["A. Hexokinase", "B. Lactate dehydrogenase", "C. Acetyl-CoA carboxylase", "D. Aldolase", "E. None of the above"], answer: 2 },
+  { q: "The synthesis of sphingolipids occurs with the condensation reaction of palmitoyl-CoA with an amino acid. Choose the right one:", opts: ["A. Proline", "B. Serine", "C. Alanine", "D. Histidine", "E. Ornithine"], answer: 1 },
+  { q: "In the cholesterol biosynthesis:", opts: ["A. HMG-CoA reductase catalyzes the limiting step", "B. It needs six acetyl units", "C. There is a condensation reaction of two squalene units", "D. It needs mitochondrial HMG-CoA", "E. All the previous are correct"], answer: 0 },
+  { q: "Which statement is right about lipoprotein composition?", opts: ["A. ApoA-I is included in Chylomicrons and HDL", "B. ApoE is included in Chylomicron remnants, HDL, VLDL, IDL", "C. ApoB-100 enters the composition of VLDL, IDL, LDL", "D. ApoB-48 enters the composition of Chylomicron", "E. All are correct"], answer: 4 },
+  { q: "Indicate the wrong answer on the synthesis of lipids:", opts: ["A. The reaction catalyzed by acetyl-CoA carboxylase is the limiting step during fatty acids biosynthesis", "B. The enzyme acetyl-CoA carboxylase is inhibited by citrate", "C. IT exclusively occurs in the cytoplasm and endoplasmic reticulum", "D. Insulin promotes lipogenesis", "E. Fatty acids biosynthesis requires both FADH₂ and NADH, in 1:3 stoichiometric ratio"], answer: 1 },
+  { q: "At 32th week of gestation, the most abundant hemoglobin subunits in fetus are:", opts: ["A. Alpha and beta", "B. Beta and gamma", "C. Alpha and epsilon", "D. Alpha and gamma", "E. Beta and epsilon"], answer: 3 },
+  { q: "Which statement about glycogen metabolism is WRONG?", opts: ["A. Insulin activates glycogen biosynthesis", "B. High glucose concentrations in the liver inhibit glycogen phosphorylase", "C. High ATP concentration inhibits glycogen phosphorylase", "D. cAMP inhibits protein kinase A (R2C2)", "E. AMP is a glycogen phosphorylase activator"], answer: 3 },
+  { q: "What statement on prostaglandins is correct?", opts: ["A. Short range acting hormones synthesized by COX", "B. Short range acting hormones synthesized by LOX", "C. The letter indicates type and the number of double bonds", "D. Basically represented by fatty acids derived from linolenic acid", "E. Acting through tyrosine kinase membrane-associated receptors"], answer: 0 },
+  { q: "The degradation of amino acids leads to an accumulation of propionic acid, and consequently a deficiency of a vitamin, which one?", opts: ["A. B6", "B. Biotin", "C. Folic acid", "D. B12", "E. B1"], answer: 3 },
+  { q: "The daily requirement of dietary folates is:", opts: ["A. 10 µg", "B. 15 mg", "C. 400 µg (micrograms)", "D. 5 mg", "E. 1 gram"], answer: 2 },
+  { q: "NADPH cells synthesis is mainly due to:", opts: ["A. Lactate dehydrogenase action", "B. Glucose-6-phosphate dehydrogenase action", "C. Electron transport chain action", "D. Shuttle systems action", "E. Combined action of transaldolase and transketolase"], answer: 1 },
+  { q: "All the hormones that work through the activation of phospholipase C use 3 second messengers:", opts: ["A. cAMP, Ca++ and diacylglycerol", "B. cAMP, Ca++ and inositol 1,4,5 triphosphate", "C. cAMP, Diacylglycerol and inositol 1,4,5 triphosphate", "D. Ca++, Diacylglycerol and inositol 1,4,5 triphosphate", "E. Ca++, ceramide and inositol 3,4,5 triphosphate"], answer: 3 },
+  { q: "Choose the wrong sentence about miRNAs:", opts: ["A. They are small non-coding RNA molecules", "B. They are involved in several biological processes", "C. They have sometimes an aberrant expression in tumors", "D. They contain at least 30 nucleotides", "E. pri-mRNA is the first inactive form produced within the nucleus"], answer: 3 },
+  { q: "Which one among the following coenzymes is a part of alpha-ketoglutarate dehydrogenase complex?", opts: ["A. NAD+", "B. Piridoxal-phosphate", "C. Biotin", "D. GDP", "E. Lipoic acid"], answer: 4 },
+  { q: "Several enzymes are stereospecific. This means that:", opts: ["A. Their active site is asymmetric", "B. Their active site is specific", "C. Their active site is flexible", "D. Their active site is complementary to the substrate", "E. None of the previous"], answer: 0 },
+  { q: "A carnitine deficiency in humans leads to muscle weakness and liver diseases, partly because:", opts: ["A. Glycogen cannot be metabolized", "B. Odd chain fatty acids cannot be metabolized during extended fasting", "C. Sphingolipids", "D. Triglycerides", "E. Acetoacetyl-CoA"], answer: 1 },
+
+  // ─── More unique questions ────────────────────────────────────
+  { q: "Choose the right alternative pathway to form methionine from homocysteine:", opts: ["A. Using glycine and FH4 as the methyl donor", "B. Using dimethylglycine as the methyl donor", "C. Using choline as the methyl donor", "D. Using sarcosine as the methyl donor", "E. Using betaine as the methyl donor"], answer: 4 },
+  { q: "Which one among the following statements concerning P450 cytochrome enzymes is correct?", opts: ["A. They are all in Golgi apparatus and can be defined microsomal enzymes", "B. They all have a reductase unit containing flavin, which uses NADPH rather than NADH", "C. They are all inducible by O₂, that binds cytochrome iron", "D. They all oxidize the unique substrate on which they react", "E. They all generate, as a final product, a free radical"], answer: 1 },
+  { q: "The following compound (phosphoenolpyruvate) participates in:", opts: ["A. Heme biosynthesis", "B. Glucose biosynthesis", "C. Glycogenolysis", "D. Glycolysis", "E. Pentose phosphate pathway"], answer: 3 },
+  { q: "Alpha lipoic acid is a cofactor of:", opts: ["A. LDH", "B. Transaldolase", "C. Transketolase", "D. Alpha-ketoglutarate dehydrogenase", "E. Debranching enzyme"], answer: 3 },
+  { q: "Which of the following lab tests may monitor a Vitamin A deficiency?", opts: ["A. Methyl malonic acid serum levels", "B. Homocysteine plasma levels", "C. Folate RBC", "D. B and C", "E. None of the previous"], answer: 4 },
+  { q: "The following reaction (homocysteine → methionine) may be accomplished in the presence of the donor:", opts: ["A. THF", "B. CH₂-THF", "C. SAH", "D. Betaine", "E. None of the previous ones"], answer: 3 },
+  { q: "Which precursor generates both NO (nitric oxide) and urea?", opts: ["A. Phosphatidylcholine", "B. Arginine", "C. Methionine", "D. Bilirubin", "E. Glycocyamine"], answer: 1 },
+  { q: "The synthesis of sphingolipids occurs with the condensation reaction of palmitoyl CoA with an amino acid. Choose the right one:", opts: ["A. Proline", "B. Serine", "C. Alanine", "D. Histidine", "E. Ornithine"], answer: 1 },
+  { q: "Choose the exact statement about glycolysis:", opts: ["A. The conversion of glucose in lactate requires the presence of O₂", "B. Hexokinase is important for liver metabolism only during carbohydrate-rich feeding", "C. Hexokinase and glucokinase do not differ from each other for their glucose Km value", "D. Methylglyoxal is the product of the fifth reaction in free solution without the enzyme", "E. Phosphofructokinase is an allosteric enzyme activated by ADP, AMP and fructose 2,6-diphosphate and inhibited by ATP and citrate"], answer: 4 },
+  { q: "What is the last intermediate in common between ketone bodies and cholesterol biosyntheses?", opts: ["A. 3-hydroxy-3-methylbutirryl CoA", "B. 3-hydroxy-3-methylglutaryl CoA (HMG-CoA)", "C. Acetoacetate", "D. Acetoacetyl-CoA", "E. None of the previous"], answer: 1 },
+  { q: "Protein kinase A (PKA):", opts: ["A. Catalyzes phosphate transfer onto protein substrates at serine, or threonine residues", "B. Strictly requires ATP", "C. Is regulated by cAMP binding", "D. All of the above are true", "E. None of the above"], answer: 3 },
+  { q: "Which molecules are final products of glycogen degradation?", opts: ["A. Glucose 1-phosphate", "B. Glucose", "C. Glucose 6-phosphate rather than glucose", "D. A and B depending on the tissue", "E. A and C depending on the tissue"], answer: 3 },
+  { q: "Arachidonic acid is:", opts: ["A. A phospholipid precursor", "B. A thromboxane derivative", "C. A thromboxane derivative", "D. A leukotriene precursor", "E. A prostaglandin derivative"], answer: 3 },
+  { q: "Nitric oxide is an important molecule as a second messenger especially in neurotransmission. It is biosynthesized from:", opts: ["A. Citrulline", "B. Glutamate", "C. Aspartate", "D. Arginine", "E. Methionine"], answer: 3 },
+  { q: "What of the following statements on haemoglobin is WRONG?", opts: ["A. Iron interacts with proximal histidine F8 and distal His E7 reducing affinity of heme to CO", "B. Globin structure reduces the affinity of heme for CO from 25,000 times to 21", "C. Metahaemoglobin reductase is essential to prevent the binding of Hb to H₂O", "D. One 2,3DPG moiety binds to two beta globins per Hb molecule", "E. Low pH and high CO₂ reduce the affinity of Hb to O₂"], answer: 2 },
+  { q: "What metabolic pathway(s) and cycle(s) is succinyl-CoA involved in?", opts: ["A. Heme biosynthesis", "B. Urea cycle", "C. Krebs cycle", "D. A and B", "E. A and C"], answer: 4 },
+  { q: "During diabetic ketoacidosis, in liver tissue acetoacetic acid is metabolized into:", opts: ["A. AcetoacetylCoA", "B. AcetylCoA", "C. Cholesterol", "D. β-hydroxybutyric acid", "E. Lactic acid"], answer: 3 },
+  { q: "Bilirubin diglucuronide is:", opts: ["A. A byproduct of HbF catabolism", "B. A water insoluble pigment derived from heme", "C. A quantitatively important bile component", "D. A glucuronyl derivative of protoporphyrin IX", "E. An Hb ligand which reduces its affinity for oxygen"], answer: 2 },
+
+  // ─── 2023 exam questions ─────────────────────────────────────
+  { q: "Which out of the following statements about Glutamate dehydrogenase is correct?", opts: ["A. Universally present in all the cells of the body", "B. Can utilize either NAD⁺/NADP⁺", "C. Catalyzes conversion of glutamate to glutamine", "D. Required for transamination reactions", "E. All of these"], answer: 1 },
+  { q: "α-Glycosidic bond is present in:", opts: ["A. Lactose", "B. Maltose", "C. Sucrose", "D. All of these", "E. None of these"], answer: 3 },
+  { q: "Which of the following statements about glycogen metabolism is correct?", opts: ["A. A key step in the synthesis of glycogen is the formation of UDP-glucose", "B. In muscle in the fasting state, glycogen is broken down to glucose 6-phosphate, then free glucose", "C. Glycogen is stored mainly in the liver and brain", "D. Insulin inhibits the synthesis of glycogen", "E. Glucagon increases the synthesis of glycogen"], answer: 0 },
+  { q: "Which of the following cannot be a substrate for gluconeogenesis?", opts: ["A. Glutamic acid", "B. Aspartic acid", "C. Palmitic acid", "D. Glycerol", "E. Galactose"], answer: 2 },
+  { q: "Glycogen synthesis is increased by which of the following?", opts: ["A. Cortisone", "B. Insulin", "C. GH", "D. Epinephrine", "E. Glucagon"], answer: 1 },
+  { q: "Which of the following can utilize Lactate formed in muscles?", opts: ["A. Rapopart-luebeling cycles", "B. Glucose-alanine cycles", "C. Cori's cycles", "D. Citric acid cycle", "E. None of those"], answer: 2 },
+  { q: "Which of the following is not a mucopolysaccharide?", opts: ["A. Heparin", "B. Chondroitin sulfate", "C. Hyaluronic acid", "D. Insulin", "E. A and D"], answer: 3 },
+  { q: "The conversion of lactate in pyruvate:", opts: ["A. Is needed for NADH restoration in anaerobic glycolysis", "B. Is needed for the delivery of lactate in the blood from muscles to the liver", "C. It is required for neo-glucogenesis in the liver", "D. Requires O₂ to occur", "E. It is needed to lower pH"], answer: 2 },
+  { q: "β-Oxidation of fatty acids requires all the following coenzymes EXCEPT:", opts: ["A. CoA", "B. FAD", "C. NADP", "D. NAD", "E. None of these"], answer: 2 },
+  { q: "What of the following mutations of EGF receptor are predictive of response to tyrosine kinase inhibitors?", opts: ["A. The combination of L858R on exon 21 and T790M on exon 20", "B. L858S on exon 21", "C. G720X on exon 21", "D. Deletion of exon 20 (or Insertions of exon 19)", "E. None of the previous mutations"], answer: 0 },
+  { q: "The binding of protons to hemoglobin (Bohr effect):", opts: ["A. Promotes the formation of the tense form (T form) of hemoglobin", "B. Favors the formation of the relaxed form (R form) of haemoglobin", "C. Favors the formation of the soluble form (S form) of haemoglobin", "D. Favors the formation of a medium-affinity form of hemoglobin for O₂", "E. Favors the relationship between alpha and beta structure"], answer: 0 },
+  { q: "Point out the incorrect statement about Myoglobin:", opts: ["A. Has a high content of alpha-helix structure", "B. Binds the iron atom of the heme group to the histidine residue F8", "C. Presents a hyperbolic oxygen dissociation curve", "D. Has, compared to hemoglobin, a greater affinity for oxygen", "E. Binds oxygen with a cooperative mechanism"], answer: 4 },
+  { q: "Which one of the following will be at a higher concentration than if the blood sample had been taken before breakfast (after eating toast and egg)?", opts: ["A. Alanine", "B. Glucose", "C. Glucagon", "D. Ketone bodies", "E. Non-esterified (free) fatty acids"], answer: 1 },
+  { q: "2,3-Diphosphoglycerate:", opts: ["A. Has a strong positive charge", "B. Binds more weakly to adult hemoglobin than to fetal hemoglobin", "C. Binds to negatively charged residues present in the central cavity of the Hb molecule", "D. Increases the affinity of hemoglobin for oxygen", "E. Lowers the affinity of hemoglobin for oxygen"], answer: 4 },
+  { q: "Which is the yield of ATP from complete oxidation of glucose to carbon dioxide and water?", opts: ["A. 10", "B. 20", "C. 25", "D. 30", "E. 32"], answer: 4 },
+  { q: "Acetyl-CoA produced in mitochondria must be transported into cytosol for synthesis of fatty acid. Which of the following is true regarding its transport?", opts: ["A. Acetyl-CoA is diffused from mitochondrial membrane", "B. Acetyl-CoA is transported by its specific transporter protein", "C. Acetyl-CoA is converted into pyruvate, enters into cytosol and acetyl CoA is regenerated", "D. Acetyl-CoA is converted into citrate, enters into cytosol and acetyl CoA is regenerated", "E. None of these"], answer: 3 },
+  { q: "Which of the followings is a common nitrogen acceptor for all reactions involving transaminases?", opts: ["A. α-Keto glutarate", "B. Pyruvate", "C. Oxaloacetate", "D. Acetoacetate", "E. All of these"], answer: 0 },
+  { q: "Mn++ is the co-factor of:", opts: ["A. Acetyl-CoA carboxylase", "B. Porphobilinogen synthase", "C. Serine-palmitoyl transferase", "D. Ala Synthase", "E. Lactate dehydrogenase"], answer: 2 },
+  { q: "Which of the following will provide the main fuel for muscle contraction during short-term intense activity such as sprinting?", opts: ["A. Muscle triacylglycerol", "B. Plasma free fatty acids", "C. Plasma triacylglycerol in VLDL", "D. Muscle glycogen", "E. Plasma glucose"], answer: 3 },
+  { q: "What is the precursor for fatty acid synthesis?", opts: ["A. Acetyl CoA", "B. Propionyl CoA", "C. Succinyl CoA", "D. Acetoacetyl CoA", "E. None of these"], answer: 0 },
+  { q: "Which of the following enzyme catalyzes the rate limiting step in fatty acid synthesis?", opts: ["A. Acetyl CoA carboxylase", "B. Malonyl CoA synthetase", "C. Acetyl CoA decarboxylase", "D. Malonyl CoA synthase", "E. None of these"], answer: 0 },
+
+  // ─── Final mixed questions ───────────────────────────────────
+  { q: "Which of the following statements about glucose metabolism is correct?", opts: ["A. All the reactions of glycolysis are freely reversible for gluconeogenesis", "B. Fructose-2,6-bisphosphate stimulates gluconeogenesis in the liver", "C. Glycolysis can proceed in the absence of oxygen only if pyruvate is formed from lactate in muscle", "D. Red blood cells can catalyse aerobic glycolysis because they contain oxygen bound to haemoglobin", "E. Red blood cells can only metabolise glucose by anaerobic glycolysis and the pentose phosphate pathway"], answer: 4 },
+  { q: "All of the following are carbohydrates EXCEPT:", opts: ["A. Glycogen", "B. Chitin", "C. Ceramide", "D. Cellulose", "E. Starch"], answer: 2 },
+  { q: "The binding of protons to hemoglobin (Bohr effect) promotes the formation of the tense form (T form). The lowering of pH:", opts: ["A. Accelerates the release of oxygen from the hemoglobin", "B. Favors the formation of the relaxed (R) form", "C. An increase in DPG concentration increases affinity for O₂", "D. Binding of O₂ to one subunit does not affect other subunits", "E. Binding of CO₂ stabilizes the relaxed (R) form"], answer: 0 },
+  { q: "When pO₂ = 1 mm Hg, the fractional saturation (YO₂) of myoglobin is about:", opts: ["A. 0.1", "B. 0.3", "C. 0.5", "D. 0.7"], answer: 1 },
+  { q: "In deoxy hemoglobin (Hb), the Fe(II) is coordinated to:", opts: ["A. Four nitrogens of the heme and to the proximal His of Hb", "B. Four nitrogens of the heme and to the distal His of Hb", "C. Four nitrogens of the heme and to an O₂ molecule", "D. Two nitrogens of the heme and to three His residues in Hb", "E. Two nitrogens of the heme and to three water molecules"], answer: 0 },
+  { q: "In sickle cell anemia, the basis of the malfunction of the hemoglobin molecule is:", opts: ["A. Incorrect secondary structure", "B. Substitution of a single amino acid", "C. Faulty binding of the heme groups", "D. Reduced affinity for oxygen", "E. Insufficient iron in the diet"], answer: 1 },
+  { q: "The Km of an enzyme for a substrate is:", opts: ["A. The inhibitor concentration that results in 95% reduction in the reaction rate", "B. The minimum concentration of substrate that saturates the enzyme", "C. The substrate concentration which determines a semi-maximal rate of the reaction", "D. The concentration of the enzyme required for physiological catalysis", "E. The maximum speed that can be achieved in catalysis"], answer: 2 },
+  { q: "Enzymes that catalyze bond formation between two complex molecules belong to the class of:", opts: ["A. Hydrolase", "B. Oxidoreductase", "C. Isomerase", "D. Ligase", "E. Transferase"], answer: 3 },
+  { q: "Which of the following is a common compound shared by the TCA cycle and the Urea cycle?", opts: ["A. α-Ketoglutarate", "B. Succinyl-CoA", "C. Oxaloacetate", "D. Fumarate", "E. Piruvate"], answer: 3 },
+  { q: "Histamine, a chemical mediator of allergies and anaphylaxis, is synthesized from the amino acid Histidine by which of the following processes?", opts: ["A. Deamination", "B. Decarboxylation", "C. Transamination", "D. Dehydrogenation", "E. Oxidoreduction"], answer: 1 },
+  { q: "Which out of the following amino acids is not required for the synthesis of Glutathione?", opts: ["A. Serine", "B. Cysteine", "C. Glutamic acid", "D. Glycine", "E. All of these"], answer: 0 },
+  { q: "Oxaloacetic acid can pass into the mitochondrial matrix if it is first converted into:", opts: ["A. Glucose", "B. Malic acid", "C. Glucose-6-phosphate", "D. Acetyl-CoA", "E. Succinic acid"], answer: 1 },
+  { q: "Which of the following substances would slow the citric acid cycle?", opts: ["A. Oxaloacetic acid and α-ketoglutaric acid", "B. Citric acid and succinyl-CoA", "C. Citric acid and isocitric acid", "D. Fumaric acid and succinyl-CoA", "E. Malic acid and fumaric acid"], answer: 1 },
+  { q: "A constant supply of glucose is needed for brain, erythrocytes, and anaerobic muscle. During starvation, brain may oxidize:", opts: ["A. Fructose", "B. Acetoacetate", "C. Lactic acid", "D. Muscle", "E. Hydrogen"], answer: 1 },
+  { q: "The first line of defense in brain in condition of hyperammonemia is:", opts: ["A. Urea formation", "B. Glutamine synthesis", "C. Glutamate synthesis", "D. Asparagine formation", "E. Ammonia synthesis"], answer: 1 },
+  { q: "A major physiological function of the pentose phosphate pathway is formation of:", opts: ["A. FADH₂ and ATP", "B. Glucose from non-carbohydrate sources", "C. NADH/H+", "D. Ribose-5-phosphate", "E. ADP"], answer: 3 },
+  { q: "The following compound (pyridoxal phosphate) derives from:", opts: ["A. Vitamin B1", "B. Niacin", "C. Vitamin B6", "D. Biotin", "E. None of these"], answer: 2 },
+  { q: "Choose the correct statement about lactate:", opts: ["A. Lactate acts as the substrate for the formation of amino acid", "B. Lactate is carried into the mitochondria through interaction with carnitine", "C. During the product of lactate from glucose two ATP are produced", "D. During lactate formation, NADH is reconverted into NAD+", "E. Pyruvate is converted into lactate by pyruvate dehydrogenase"], answer: 3 },
+  { q: "Which of the following decreases the rate of glycolysis in a tissue?", opts: ["A. Glucose", "B. Citric acid", "C. Fructose-2,6-biphosphate", "D. Fructose-1,6-biphosphate", "E. AMP"], answer: 1 },
+  { q: "Which of the following statements about collagen is correct?", opts: ["A. Collagen contains a high proportion of hydroxylated prolyl residues", "B. Collagen is a globular, intracellular protein", "C. Post-translational modification of collagen involves vitamin A", "D. The structure of collagen consists of a superhelix of three α-helices twisted together", "E. Proline is very good at forming alpha-helices"], answer: 0 },
+  { q: "Drinking grapefruit juice during statins assumption may have important side effects, due to a compound present in this juice. What is the reason why it happens?", opts: ["A. It interferes with the hepatic uptake of statins", "B. It improves the conversion of statins in a toxic metabolite", "C. It inhibits statins catabolism (CYP3A4 inhibition)", "D. It increases the expression of HMG CoA reductase", "E. It inhibits the expression of HMG CoA reductase"], answer: 2 },
+  { q: "Alpha helix as a secondary protein structure:", opts: ["A. Consists of a right-handed helix with 3.6 residues per pitch (CORRECT: this is TRUE)", "B. Is stabilized by hydrogen bonds between side chain of two adjacent residues", "C. Is stabilized by a peptide bond involving two consecutive residues", "D. Is stabilized by hydrogen bonds between spatially adjacent peptide units", "E. Is stabilized by small non polar amino acids, particularly glycine"], answer: 0 },
+  { q: "Which definition about hemoglobin is incorrect?", opts: ["A. Hb binds two 2,3BPG molecules per tetramer, one to each beta subunit", "B. Hb is carried by the erythrocytes and binds 1 oxygen molecule per subunit", "C. pCO₂ and pH may influence O₂ transport", "D. CO₂ is produced and almost completely transported as HCO₃⁻", "E. None of the previous"], answer: 0 },
+  { q: "Select one correct answer on Km:", opts: ["A. Is equal to Vmax/2", "B. It depends on enzyme concentration", "C. It doesn't depend on enzyme dissociation constants", "D. Its value is about three times higher in presence of a non-competitive inhibitor", "E. None of the above"], answer: 4 },
+  { q: "Which of the following steps from glycolysis is performed by a different enzyme in gluconeogenesis?", opts: ["A. Isomerase", "B. Phosphofructokinase (PFK)", "C. Glyceraldehyde-3-P dehydrogenase", "D. Enolase", "E. Aldolase"], answer: 1 },
+  { q: "A fatty acid that is not synthesized in man is:", opts: ["A. Linoleic acid", "B. Oleic acid", "C. Palmitic acid", "D. Stearic acid", "E. All of these"], answer: 0 },
+  { q: "What of the following Single nucleotide polymorphisms on B-Raf are predictive of response to vemurafenib in melanoma?", opts: ["A. V600E and V600L", "B. V600E", "C. Deletions on B-Raf", "D. Insertions on BRaf", "E. All the previous answers are correct"], answer: 4 },
+  { q: "The following molecule H₂N-CO-NH₂ (urea) is:", opts: ["A. The product of transaminase reaction", "B. The product of arginase catalysis", "C. The product of glutamate dehydrogenase", "D. The product of serine deaminase", "E. The product of threonine deaminase"], answer: 1 },
+  { q: "The carbamoyl phosphate compound participates in:", opts: ["A. Pyrimidine biosynthesis", "B. Glucose biosynthesis", "C. Urea biosynthesis", "D. A and C", "E. A and B"], answer: 3 },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// QUIZ ENGINE
+// ═══════════════════════════════════════════════════════════════
+let shuffled = [];
+let current = 0;
+let score = 0;
+let apiKey = '';
+let answered = false;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function startQuiz() {
+  apiKey = document.getElementById('api-key-input').value.trim();
+  beginQuiz();
+}
+function startQuizNoKey() {
+  apiKey = '';
+  beginQuiz();
+}
+function beginQuiz() {
+  shuffled = shuffle(ALL_QUESTIONS);
+  current = 0; score = 0; answered = false;
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('quiz-screen').style.display = 'block';
+  document.getElementById('score-display').style.display = 'block';
+  document.getElementById('score-total').textContent = shuffled.length;
+  renderQuestion();
+}
+
+function renderQuestion() {
+  answered = false;
+  const q = shuffled[current];
+  const pct = (current / shuffled.length) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('score-num').textContent = score;
+
+  const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const optsHTML = q.opts.map((o, i) =>
+    `<button class="opt-btn" onclick="selectAnswer(${i})" id="opt-${i}">
+      <span class="opt-letter">${letters[i]}</span>
+      <span>${o.replace(/^[A-E]\.\s*/, '')}</span>
+    </button>`
+  ).join('');
+
+  document.getElementById('q-container').innerHTML = `
+    <div class="q-card" id="q-card">
+      <div class="q-meta">Question ${current + 1} of ${shuffled.length}</div>
+      <div class="q-text">${q.q}</div>
+      <div class="options" id="options">${optsHTML}</div>
+      <div id="ai-container"></div>
+    </div>
+    <button class="btn-next" id="btn-next" onclick="nextQuestion()">Next Question →</button>
+  `;
+}
+
+function selectAnswer(idx) {
+  if (answered) return;
+  answered = true;
+  const q = shuffled[current];
+  const correct = q.answer;
+  const btns = document.querySelectorAll('.opt-btn');
+
+  btns.forEach(b => b.disabled = true);
+  btns[correct].classList.add('correct');
+  if (idx !== correct) {
+    btns[idx].classList.add('wrong');
+  } else {
+    score++;
+    document.getElementById('score-num').textContent = score;
+  }
+
+  document.getElementById('btn-next').classList.add('visible');
+  showAIExplanation(q, idx, correct);
+}
+
+async function showAIExplanation(q, chosen, correct) {
+  const container = document.getElementById('ai-container');
+  const wasCorrect = chosen === correct;
+  const chosenText = q.opts[chosen];
+  const correctText = q.opts[correct];
+
+  container.innerHTML = `
+    <div class="ai-box">
+      <div class="ai-box-header">
+        <div class="ai-dot"></div>
+        AI Explanation
+      </div>
+      <div class="ai-text loading" id="ai-text">Generating explanation${apiKey ? '' : ' (add API key for full AI explanations)'}…</div>
+    </div>
+  `;
+
+  if (!apiKey) {
+    document.getElementById('ai-text').innerHTML =
+      `<strong style="color:var(--${wasCorrect?'correct':'wrong'})">${wasCorrect ? '✓ Correct!' : '✗ Incorrect.'}</strong> ` +
+      `The correct answer is: <strong>${correctText}</strong>. ` +
+      `Add your Anthropic API key on the start screen to get full AI explanations.`;
+    return;
+  }
+
+  try {
+    const prompt = `You are a biochemistry professor. A medical student answered a multiple choice question.
+
+Question: "${q.q}"
+Options: ${q.opts.map((o,i) => `(${i}) ${o}`).join(' | ')}
+Student chose: (${chosen}) ${chosenText}
+Correct answer: (${correct}) ${correctText}
+Was student correct: ${wasCorrect}
+
+Give a concise but thorough explanation (3-5 sentences) that:
+1. Confirms if correct or explains why the chosen answer is wrong
+2. Explains WHY the correct answer is right with the key biochemical concept
+3. Adds one useful clinical or exam tip if relevant
+Keep it focused and educational.`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 350, messages: [{ role: 'user', content: prompt }] })
+    });
+
+    const data = await resp.json();
+    if (data.content && data.content[0]) {
+      const el = document.getElementById('ai-text');
+      if (el) el.innerHTML = `<span style="color:var(--${wasCorrect?'correct':'wrong'}); font-weight:600">${wasCorrect?'✓ Correct!':'✗ Incorrect.'}</span> ` + data.content[0].text;
+    }
+  } catch(e) {
+    const el = document.getElementById('ai-text');
+    if (el) el.textContent = 'Could not load AI explanation. Check your API key.';
+  }
+}
+
+function nextQuestion() {
+  current++;
+  if (current >= shuffled.length) {
+    showResults();
+  } else {
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function showResults() {
+  document.getElementById('quiz-screen').style.display = 'none';
+  document.getElementById('score-display').style.display = 'none';
+  const rs = document.getElementById('results-screen');
+  rs.style.display = 'block';
+  const pct = Math.round((score / shuffled.length) * 100);
+  document.getElementById('final-score').textContent = `${score} / ${shuffled.length}`;
+  let msg = pct >= 80 ? '🎓 Excellent! You\'re exam-ready.' : pct >= 60 ? '📚 Good progress. Keep reviewing.' : '💪 Keep studying — you\'ll get there!';
+  document.getElementById('final-sub').textContent = `${pct}% — ${msg}`;
+}
+
+function restartQuiz() {
+  document.getElementById('results-screen').style.display = 'none';
+  beginQuiz();
+}
+</script>
+</body>
+</html>
+HTMLEOF
+echo "Done. $(wc -c < /mnt/user-data/outputs/biochemistry_quiz.html) bytes"
+Output
+
+Done. 63862 bytes
